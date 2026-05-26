@@ -22,7 +22,8 @@ class Renderer {
 
   loadSprites(callback) {
     const spriteList = [
-      'box_small', 'machine', 'conveyor_stripe',
+      'box_small', 'machine', 'machine_bed', 'robot_arm_a',
+      'conveyor_stripe',
       'conveyor_stripe_part_end', 'conveyor_stripe_part_middle',
       'conveyor_corner',
     ];
@@ -68,12 +69,21 @@ class Renderer {
           case TILE_TYPES.IRON_ORE:
             this.renderOre(x, y);
             break;
+          case TILE_TYPES.COPPER_ORE:
+            this.renderCopperOre(x, y);
+            break;
           case TILE_TYPES.CONVEYOR:
             this.renderConveyor(col, row, tile.direction || 0);
             this.renderItemsOnBelt(col, row, tile);
             break;
           case TILE_TYPES.FURNACE:
             this.renderFurnace(x, y, tile);
+            break;
+          case TILE_TYPES.DRILL:
+            this.renderDrill(x, y, tile);
+            break;
+          case TILE_TYPES.ASSEMBLER:
+            this.renderAssembler(x, y, tile);
             break;
         }
       }
@@ -86,6 +96,68 @@ class Renderer {
     ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
     ctx.fillStyle = '#A0522D';
     ctx.fillRect(x + 8, y + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+  }
+
+  renderCopperOre(x, y) {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#B87333';
+    ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+    ctx.fillStyle = '#D4945A';
+    ctx.fillRect(x + 8, y + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+  }
+
+  renderDrill(x, y, tile) {
+    const ctx = this.ctx;
+    const img = this.sprites['machine_bed'];
+    if (img && this.spritesLoaded) {
+      ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+    } else {
+      ctx.fillStyle = '#556677';
+      ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+      ctx.fillStyle = '#778899';
+      ctx.fillRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12);
+    }
+
+    if (tile.isMining) {
+      ctx.fillStyle = 'rgba(255, 200, 50, 0.25)';
+      ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+    }
+
+    if (tile.outputBuffer && tile.outputBuffer.length > 0) {
+      ctx.fillStyle = '#aaa';
+      ctx.beginPath();
+      ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE - 8, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  renderAssembler(x, y, tile) {
+    const ctx = this.ctx;
+    const img = this.sprites['robot_arm_a'];
+    if (img && this.spritesLoaded) {
+      ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+    } else {
+      ctx.fillStyle = '#4a6a8a';
+      ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+      ctx.fillStyle = '#5a8aaa';
+      ctx.fillRect(x + 8, y + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+    }
+
+    if (tile.isCrafting) {
+      ctx.fillStyle = 'rgba(100, 200, 255, 0.25)';
+      ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+    }
+
+    const inputCount = tile.inputBuffer ? tile.inputBuffer.length : 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 2, y + 2, 36 * Math.min(inputCount / 8, 1), 4);
+
+    if (tile.outputBuffer && tile.outputBuffer.length > 0) {
+      ctx.fillStyle = '#66ff66';
+      ctx.beginPath();
+      ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE - 8, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   renderConveyor(col, row, direction) {
@@ -140,10 +212,29 @@ class Renderer {
         ctx.beginPath();
         ctx.arc(ix, iy, 3, 0, Math.PI * 2);
         ctx.fill();
+      } else if (item.type === ITEM_TYPES.COPPER_ORE) {
+        ctx.fillStyle = '#D4945A';
+        ctx.beginPath();
+        ctx.arc(ix, iy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#B87333';
+        ctx.beginPath();
+        ctx.arc(ix, iy, 3, 0, Math.PI * 2);
+        ctx.fill();
       } else if (item.type === ITEM_TYPES.IRON_PLATE) {
         ctx.fillStyle = '#ffd700';
         ctx.fillRect(ix - 4, iy - 2, 8, 4);
         ctx.fillStyle = '#daa520';
+        ctx.fillRect(ix - 3, iy - 1, 6, 2);
+      } else if (item.type === ITEM_TYPES.COPPER_PLATE) {
+        ctx.fillStyle = '#ff8844';
+        ctx.fillRect(ix - 4, iy - 2, 8, 4);
+        ctx.fillStyle = '#cc6633';
+        ctx.fillRect(ix - 3, iy - 1, 6, 2);
+      } else if (item.type === ITEM_TYPES.CIRCUIT_BOARD) {
+        ctx.fillStyle = '#44cc44';
+        ctx.fillRect(ix - 5, iy - 3, 10, 6);
+        ctx.fillStyle = '#22aa22';
         ctx.fillRect(ix - 3, iy - 1, 6, 2);
       }
     }
@@ -172,7 +263,10 @@ class Renderer {
     ctx.fillRect(x + 2, y + 2, 36 * (inputCount / 5), 4);
 
     if (tile.outputBuffer && tile.outputBuffer.length > 0) {
-      ctx.fillStyle = '#ffd700';
+      const outType = tile.outputBuffer[0].type;
+      if (outType === ITEM_TYPES.IRON_PLATE) ctx.fillStyle = '#ffd700';
+      else if (outType === ITEM_TYPES.COPPER_PLATE) ctx.fillStyle = '#ff8844';
+      else ctx.fillStyle = '#aaa';
       ctx.beginPath();
       ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE - 8, 4, 0, Math.PI * 2);
       ctx.fill();

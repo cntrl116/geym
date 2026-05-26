@@ -6,15 +6,17 @@ class Game {
     this.renderer = new Renderer(canvas);
     this.ui = new UI();
     this.keys = {};
-    this.totalPlatesProduced = 0;
+    this.totalItemsProduced = 0;
     this.lastTime = 0;
   }
 
   init() {
     this.world.init();
-    this.world.onPlateProduced = () => {
-      this.totalPlatesProduced++;
-      this.player.inventory.iron_plate++;
+    this.world.onItemProduced = (type) => {
+      this.totalItemsProduced++;
+      if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
+      else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
+      else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
     };
     this.setupInput();
     this.renderer.loadSprites();
@@ -30,6 +32,7 @@ class Game {
       if (['w', 'W', 'ArrowUp', 's', 'S', 'ArrowDown',
            'a', 'A', 'ArrowLeft', 'd', 'D', 'ArrowRight',
            'e', 'E', 'q', 'Q', 'f', 'F', 'g', 'G',
+           'h', 'H', 'j', 'J',
            'k', 'K', 'l', 'L', 'r', 'R'].includes(key)) {
         e.preventDefault();
       }
@@ -83,35 +86,39 @@ class Game {
       switch (key) {
         case 'w': case 'W': case 'ArrowUp': {
           const r = this.player.move(0, -1, this.world);
-          if (r === 'ore') this.ui.notify('+1 руда');
+          if (r === 'ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
           break;
         }
         case 's': case 'S': case 'ArrowDown': {
           const r = this.player.move(0, 1, this.world);
-          if (r === 'ore') this.ui.notify('+1 руда');
+          if (r === 'ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
           break;
         }
         case 'a': case 'A': case 'ArrowLeft': {
           const r = this.player.move(-1, 0, this.world);
-          if (r === 'ore') this.ui.notify('+1 руда');
+          if (r === 'ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
           break;
         }
         case 'd': case 'D': case 'ArrowRight': {
           const r = this.player.move(1, 0, this.world);
-          if (r === 'ore') this.ui.notify('+1 руда');
+          if (r === 'ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
           break;
         }
         case 'q': case 'Q':
           this.player.cycleDirection();
           this.ui.notify(`Направление: ${DIR_NAMES[this.player.direction]}`);
           break;
-        case 'e': case 'E':
-          if (this.player.collectOreAdjacent(this.world)) {
-            this.ui.notify('+1 руда');
-          } else {
-            this.ui.notify('Нет руды рядом');
-          }
+        case 'e': case 'E': {
+          const r = this.player.collectOreAdjacent(this.world);
+          if (r === 'iron_ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
+          else if (!r) this.ui.notify('Нет руды рядом');
           break;
+        }
         case 'f': case 'F':
           if (this.player.buildConveyor(this.world)) {
             this.ui.notify('Конвейер построен');
@@ -122,6 +129,20 @@ class Game {
         case 'g': case 'G':
           if (this.player.buildFurnace(this.world)) {
             this.ui.notify('Печь построена');
+          } else {
+            this.ui.notify('Нужна руда или место занято');
+          }
+          break;
+        case 'h': case 'H':
+          if (this.player.buildDrill(this.world)) {
+            this.ui.notify('Бур построен');
+          } else {
+            this.ui.notify('Нужна руда или место занято');
+          }
+          break;
+        case 'j': case 'J':
+          if (this.player.buildAssembler(this.world)) {
+            this.ui.notify('Сборщик построен');
           } else {
             this.ui.notify('Нужна руда или место занято');
           }
@@ -142,8 +163,7 @@ class Game {
   }
 
   update(dt) {
-    this.world.updateBelts(dt);
-    this.world.updateFurnaces(dt);
+    this.world.update(dt);
   }
 
   render() {
@@ -157,7 +177,7 @@ class Game {
       buildInfo += `Направление: ${DIR_NAMES[this.player.direction]}`;
       this.ui.update(
         this.player.inventory,
-        this.totalPlatesProduced,
+        this.totalItemsProduced,
         this.player.col, this.player.row,
         false, buildInfo
       );
@@ -200,7 +220,7 @@ class Game {
         direction: this.player.direction,
         inventory: { ...this.player.inventory },
       },
-      totalPlatesProduced: this.totalPlatesProduced,
+      totalItemsProduced: this.totalItemsProduced,
     };
   }
 
@@ -212,10 +232,12 @@ class Game {
       this.player.direction = data.player.direction;
       this.player.inventory = { ...this.player.inventory, ...data.player.inventory };
     }
-    this.totalPlatesProduced = data.totalPlatesProduced || 0;
-    this.world.onPlateProduced = () => {
-      this.totalPlatesProduced++;
-      this.player.inventory.iron_plate++;
+    this.totalItemsProduced = data.totalItemsProduced || 0;
+    this.world.onItemProduced = (type) => {
+      this.totalItemsProduced++;
+      if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
+      else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
+      else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
     };
   }
 
@@ -240,13 +262,15 @@ class Game {
 
   resetGame() {
     localStorage.removeItem('gejmSave');
-    this.totalPlatesProduced = 0;
+    this.totalItemsProduced = 0;
     this.player = new Player();
     this.world = new World();
     this.world.init();
-    this.world.onPlateProduced = () => {
-      this.totalPlatesProduced++;
-      this.player.inventory.iron_plate++;
+    this.world.onItemProduced = (type) => {
+      this.totalItemsProduced++;
+      if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
+      else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
+      else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
     };
     this.ui.notify('Мир сброшен');
   }

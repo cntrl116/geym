@@ -16,8 +16,8 @@ class UI {
     this.elements.inv = document.createElement('div');
     h.appendChild(this.elements.inv);
 
-    this.elements.plates = document.createElement('div');
-    h.appendChild(this.elements.plates);
+    this.elements.prod = document.createElement('div');
+    h.appendChild(this.elements.prod);
 
     this.elements.buildInfo = document.createElement('div');
     this.elements.buildInfo.style.marginTop = '6px';
@@ -30,7 +30,7 @@ class UI {
     this.elements.controls.style.fontSize = '12px';
     this.elements.controls.style.opacity = '0.6';
     this.elements.controls.innerHTML =
-      'WASD — движение | E — сбор | Q — напр. | F — конвейер | G — печь | K — сохр | L — загр | R — сброс | ЛКМ — конвейер | ПКМ — печь';
+      'WASD — движение | E — сбор | Q — напр. | F — конвейер | G — печь | H — бур | J — сборщик | K — сохр | L — загр | R — сброс | ЛКМ — конвейер | ПКМ — печь';
     h.appendChild(this.elements.controls);
 
     this.elements.saveLoad = document.createElement('div');
@@ -44,15 +44,15 @@ class UI {
     this.elements.notify.style.color = '#ffcc00';
     h.appendChild(this.elements.notify);
 
-    this.update({ iron_ore: 0, iron_plate: 0 }, 0, 0, 0, false, '');
+    this.update({ iron_ore: 0, copper_ore: 0, iron_plate: 0, copper_plate: 0, circuit_board: 0 }, 0, 0, 0, false, '');
   }
 
-  update(inventory, totalPlates, col, row, buildMode, buildInfo) {
+  update(inventory, totalItems, col, row, buildMode, buildInfo) {
     this.elements.pos.textContent = `[${col || 0}, ${row || 0}]`;
     this.elements.inv.textContent =
-      `\u2692 Руда: ${inventory.iron_ore} | Пластины: ${inventory.iron_plate}`;
-    this.elements.plates.textContent =
-      `\u2699 Произведено пластин: ${totalPlates || 0}`;
+      `\u2692 Fe: ${inventory.iron_ore} Cu: ${inventory.copper_ore} | \u2699 Fe: ${inventory.iron_plate} Cu: ${inventory.copper_plate} | \u2691 Плата: ${inventory.circuit_board}`;
+    this.elements.prod.textContent =
+      `\u2699 Произведено: ${totalItems || 0}`;
     this.elements.buildInfo.textContent = buildInfo || '';
   }
 
