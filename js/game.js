@@ -18,9 +18,26 @@ class Game {
       else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
       else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
     };
+    this.world.onPlayerHit = (dmg) => {
+      this.player.hp -= dmg;
+      this.ui.notify('Атакован! ❤' + this.player.hp);
+      if (this.player.hp <= 0) {
+        this.gameOver();
+      }
+    };
+    this.world.onEnemyKilled = () => {
+      this.player.inventory.iron_ore += 2;
+      this.ui.notify('Враг уничтожен! +2 Fe');
+    };
+    this.gameEnded = false;
     this.setupInput();
     this.renderer.loadSprites();
     this.tryAutoLoad();
+  }
+
+  gameOver() {
+    this.gameEnded = true;
+    this.ui.notify('GAME OVER — нажми R для рестарта');
   }
 
   setupInput() {
@@ -32,7 +49,7 @@ class Game {
       if (['w', 'W', 'ArrowUp', 's', 'S', 'ArrowDown',
            'a', 'A', 'ArrowLeft', 'd', 'D', 'ArrowRight',
            'e', 'E', 'q', 'Q', 'f', 'F', 'g', 'G',
-           'h', 'H', 'j', 'J',
+           'h', 'H', 'j', 'J', 't', 'T',
            'k', 'K', 'l', 'L', 'r', 'R'].includes(key)) {
         e.preventDefault();
       }
@@ -147,6 +164,13 @@ class Game {
             this.ui.notify('Нужна руда или место занято');
           }
           break;
+        case 't': case 'T':
+          if (this.player.buildTurret(this.world)) {
+            this.ui.notify('Турель построена');
+          } else {
+            this.ui.notify('Нужна пластина или место занято');
+          }
+          break;
         case 'k': case 'K':
           this.saveGame();
           break;
@@ -163,22 +187,27 @@ class Game {
   }
 
   update(dt) {
+    if (this.gameEnded) return;
+    this.world.playerCol = this.player.col;
+    this.world.playerRow = this.player.row;
     this.world.update(dt);
+    this.renderer.update(dt);
   }
 
   render() {
     try {
       this.renderer.clear();
       this.renderer.renderWorld(this.world);
+      this.renderer.renderProjectiles(this.world.projectiles);
+      this.renderer.renderEnemies(this.world.enemies);
       this.renderer.renderHover(this.hoverCol, this.hoverRow);
       this.renderer.renderPlayer(this.player);
 
       let buildInfo = '';
       buildInfo += `Направление: ${DIR_NAMES[this.player.direction]}`;
       this.ui.update(
-        this.player.inventory,
+        this.player,
         this.totalItemsProduced,
-        this.player.col, this.player.row,
         false, buildInfo
       );
     } catch (err) {
@@ -218,6 +247,8 @@ class Game {
         col: this.player.col,
         row: this.player.row,
         direction: this.player.direction,
+        hp: this.player.hp,
+        maxHp: this.player.maxHp,
         inventory: { ...this.player.inventory },
       },
       totalItemsProduced: this.totalItemsProduced,
@@ -230,14 +261,29 @@ class Game {
       this.player.col = data.player.col;
       this.player.row = data.player.row;
       this.player.direction = data.player.direction;
+      this.player.hp = data.player.hp || PLAYER_MAX_HP;
+      this.player.maxHp = data.player.maxHp || PLAYER_MAX_HP;
       this.player.inventory = { ...this.player.inventory, ...data.player.inventory };
+      this.world.playerCol = this.player.col;
+      this.world.playerRow = this.player.row;
     }
     this.totalItemsProduced = data.totalItemsProduced || 0;
+    this.gameEnded = false;
     this.world.onItemProduced = (type) => {
       this.totalItemsProduced++;
       if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
       else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
       else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
+    };
+    this.world.onPlayerHit = (dmg) => {
+      this.player.hp -= dmg;
+      this.ui.notify('Атакован! ❤' + this.player.hp);
+      if (this.player.hp <= 0) {
+        this.gameOver();
+      }
+    };
+    this.world.onEnemyKilled = () => {
+      this.player.inventory.iron_ore += 2;
     };
   }
 
@@ -272,6 +318,17 @@ class Game {
       else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
       else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
     };
+    this.world.onPlayerHit = (dmg) => {
+      this.player.hp -= dmg;
+      this.ui.notify('Атакован! ❤' + this.player.hp);
+      if (this.player.hp <= 0) {
+        this.gameOver();
+      }
+    };
+    this.world.onEnemyKilled = () => {
+      this.player.inventory.iron_ore += 2;
+    };
+    this.gameEnded = false;
     this.ui.notify('Мир сброшен');
   }
 }

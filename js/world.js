@@ -4,6 +4,13 @@ class World {
     this.oreCount = 0;
     this.copperOreCount = 0;
     this.onItemProduced = null;
+    this.enemies = [];
+    this.projectiles = [];
+    this.enemySpawnTimer = 0;
+    this.onPlayerHit = null;
+    this.onEnemyKilled = null;
+    this.playerCol = 1;
+    this.playerRow = 1;
   }
 
   init() {
@@ -97,6 +104,17 @@ class World {
       craftTimer: 0,
       isCrafting: false,
       currentRecipe: null,
+    });
+    return true;
+  }
+
+  placeTurret(col, row, dir) {
+    const tile = this.getTile(col, row);
+    if (!tile || tile.type !== TILE_TYPES.EMPTY) return false;
+    this.setTile(col, row, {
+      type: TILE_TYPES.TURRET,
+      direction: dir,
+      cooldown: 0,
     });
     return true;
   }
@@ -312,7 +330,7 @@ class World {
       if (tile.inputBuffer.length >= 8) return false;
       return item.type === ITEM_TYPES.IRON_PLATE || item.type === ITEM_TYPES.COPPER_PLATE;
     }
-    if (tile.type === TILE_TYPES.DRILL) {
+    if (tile.type === TILE_TYPES.DRILL || tile.type === TILE_TYPES.TURRET) {
       return false;
     }
     return false;
@@ -327,11 +345,132 @@ class World {
     }
   }
 
+  spawnEnemy() {
+    const side = Math.floor(Math.random() * 4);
+    let col, row;
+    if (side === 0) { col = Math.floor(Math.random() * COLS); row = 0; }
+    else if (side === 1) { col = COLS - 1; row = Math.floor(Math.random() * ROWS); }
+    else if (side === 2) { col = Math.floor(Math.random() * COLS); row = ROWS - 1; }
+    else { col = 0; row = Math.floor(Math.random() * ROWS); }
+    this.enemies.push({
+      col, row,
+      hp: ENEMY_HP,
+      targetCol: this.playerCol, targetRow: this.playerRow,
+    });
+  }
+
+  updateEnemies(dt) {
+    this.enemySpawnTimer += dt;
+    if (this.enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
+      this.enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
+      this.spawnEnemy();
+    }
+
+    const deadEnemies = [];
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i];
+      e.targetCol = this.playerCol;
+      e.targetRow = this.playerRow;
+      const dx = Math.sign(e.targetCol - e.col);
+      const dy = Math.sign(e.targetRow - e.row);
+      let moveCol = e.col, moveRow = e.row;
+      let moved = false;
+
+      if (dx !== 0) {
+        const nc = e.col + dx;
+        if (nc >= 0 && nc < COLS) {
+          const t = this.getTile(nc, e.row);
+          if (t && t.type !== TILE_TYPES.TURRET) {
+            moveCol = nc;
+            moved = true;
+          }
+        }
+      }
+      if (!moved && dy !== 0) {
+        const nr = e.row + dy;
+        if (nr >= 0 && nr < ROWS) {
+          const t = this.getTile(e.col, nr);
+          if (t && t.type !== TILE_TYPES.TURRET) {
+            moveRow = nr;
+            moved = true;
+          }
+        }
+      }
+
+      if (moved) {
+        e.col = moveCol;
+        e.row = moveRow;
+      }
+
+      if (e.col === this.playerCol && e.row === this.playerRow) {
+        if (this.onPlayerHit) this.onPlayerHit(ENEMY_DAMAGE);
+        deadEnemies.push(i);
+      }
+    }
+
+    for (let i = deadEnemies.length - 1; i >= 0; i--) {
+      this.enemies.splice(deadEnemies[i], 1);
+    }
+  }
+
+  updateTurrets(dt) {
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const tile = this.grid[row][col];
+        if (tile.type !== TILE_TYPES.TURRET) continue;
+
+        tile.cooldown = Math.max(0, (tile.cooldown || 0) - dt);
+
+        if (tile.cooldown <= 0) {
+          let closestDist = Infinity;
+          let closestIdx = -1;
+          for (let i = 0; i < this.enemies.length; i++) {
+            const e = this.enemies[i];
+            const d = Math.abs(e.col - col) + Math.abs(e.row - row);
+            if (d <= TURRET_RANGE && d < closestDist) {
+              closestDist = d;
+              closestIdx = i;
+            }
+          }
+          if (closestIdx >= 0) {
+            const e = this.enemies[closestIdx];
+            this.projectiles.push({ sc: col, sr: row, dc: e.col, dr: e.row, progress: 0 });
+            tile.cooldown = TURRET_COOLDOWN;
+          }
+        }
+      }
+    }
+
+    const deadProjectiles = [];
+    for (let i = 0; i < this.projectiles.length; i++) {
+      const p = this.projectiles[i];
+      p.progress += 0.02 * dt;
+      if (p.progress >= 1) {
+        for (let j = 0; j < this.enemies.length; j++) {
+          if (this.enemies[j].col === p.dc && this.enemies[j].row === p.dr) {
+            this.enemies[j].hp--;
+            if (this.enemies[j].hp <= 0) {
+              this.enemies.splice(j, 1);
+              if (this.onEnemyKilled) this.onEnemyKilled();
+            }
+            break;
+          }
+        }
+        deadProjectiles.push(i);
+      }
+    }
+    for (let i = deadProjectiles.length - 1; i >= 0; i--) {
+      this.projectiles.splice(deadProjectiles[i], 1);
+    }
+  }
+
   update(dt) {
     this.updateBelts(dt);
     this.updateFurnaces(dt);
     this.updateDrills(dt);
     this.updateAssemblers(dt);
+    this.updateEnemies(dt);
+    this.updateTurrets(dt);
   }
 
   getSpriteForTile(col, row) {
@@ -344,6 +483,7 @@ class World {
       case TILE_TYPES.FURNACE: return 'machine';
       case TILE_TYPES.DRILL: return 'machine_bed';
       case TILE_TYPES.ASSEMBLER: return 'robot_arm_a';
+      case TILE_TYPES.TURRET: return 'machine';
       default: return null;
     }
   }
@@ -352,6 +492,7 @@ class World {
     return {
       oreCount: this.oreCount,
       copperOreCount: this.copperOreCount,
+      enemySpawnTimer: this.enemySpawnTimer,
       grid: this.grid.map(row => row.map(tile => {
         const t = { type: tile.type };
         if (tile.type === TILE_TYPES.CONVEYOR) {
@@ -380,6 +521,10 @@ class World {
           t.isCrafting = tile.isCrafting || false;
           t.currentRecipe = tile.currentRecipe || null;
         }
+        if (tile.type === TILE_TYPES.TURRET) {
+          t.direction = tile.direction;
+          t.cooldown = tile.cooldown || 0;
+        }
         return t;
       })),
     };
@@ -388,6 +533,9 @@ class World {
   deserialize(data) {
     this.oreCount = data.oreCount || 0;
     this.copperOreCount = data.copperOreCount || 0;
+    this.enemySpawnTimer = data.enemySpawnTimer || 0;
+    this.enemies = [];
+    this.projectiles = [];
     this.grid = data.grid.map(row => row.map(tile => {
       const t = { ...tile };
       if (t.type === TILE_TYPES.CONVEYOR) {
@@ -403,6 +551,9 @@ class World {
       if (t.type === TILE_TYPES.ASSEMBLER) {
         if (!Array.isArray(t.inputBuffer)) t.inputBuffer = [];
         if (!Array.isArray(t.outputBuffer)) t.outputBuffer = [];
+      }
+      if (t.type === TILE_TYPES.TURRET) {
+        t.cooldown = t.cooldown || 0;
       }
       return t;
     }));

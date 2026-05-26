@@ -24,6 +24,7 @@ const TILE_TYPES = {
   FURNACE: 'furnace',
   DRILL: 'drill',
   ASSEMBLER: 'assembler',
+  TURRET: 'turret',
 };
 
 const ITEM_TYPES = {
@@ -47,3 +48,14 @@ const ASSEMBLER_COST = 8;
 
 const BELT_SPEED = 0.001;
 const DRILL_SPEED = 2000;
+
+const TURRET_COST = 5;
+const TURRET_RANGE = 5;
+const TURRET_COOLDOWN = 800;
+
+const ENEMY_HP = 3;
+const ENEMY_SPEED = 0.025;
+const ENEMY_DAMAGE = 1;
+const ENEMY_SPAWN_INTERVAL = 12000;
+
+const PLAYER_MAX_HP = 10;

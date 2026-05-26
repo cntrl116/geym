@@ -3,6 +3,8 @@ class Player {
     this.col = 1;
     this.row = 1;
     this.direction = DIR_DOWN;
+    this.hp = PLAYER_MAX_HP;
+    this.maxHp = PLAYER_MAX_HP;
     this.inventory = { iron_ore: 0, copper_ore: 0, iron_plate: 0, copper_plate: 0, circuit_board: 0 };
   }
 
@@ -89,6 +91,17 @@ class Player {
     return world.placeAssembler(tc, tr, this.direction);
   }
 
+  buildTurret(world) {
+    const dir = DIR_VEC[this.direction];
+    const tc = this.col + dir.x;
+    const tr = this.row + dir.y;
+    const tile = world.getTile(tc, tr);
+    if (!tile || tile.type !== TILE_TYPES.EMPTY) return false;
+    if (this.inventory.iron_plate < TURRET_COST) return false;
+    this.inventory.iron_plate -= TURRET_COST;
+    return world.placeTurret(tc, tr, this.direction);
+  }
+
   buildConveyorAt(col, row, world) {
     const tile = world.getTile(col, row);
     if (!tile || tile.type !== TILE_TYPES.EMPTY) return false;
@@ -119,6 +132,14 @@ class Player {
     if (this.inventory.iron_ore < ASSEMBLER_COST) return false;
     this.inventory.iron_ore -= ASSEMBLER_COST;
     return world.placeAssembler(col, row, this.direction);
+  }
+
+  buildTurretAt(col, row, world) {
+    const tile = world.getTile(col, row);
+    if (!tile || tile.type !== TILE_TYPES.EMPTY) return false;
+    if (this.inventory.iron_plate < TURRET_COST) return false;
+    this.inventory.iron_plate -= TURRET_COST;
+    return world.placeTurret(col, row, this.direction);
   }
 
   collectOreAdjacent(world) {

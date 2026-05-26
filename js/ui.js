@@ -30,7 +30,7 @@ class UI {
     this.elements.controls.style.fontSize = '12px';
     this.elements.controls.style.opacity = '0.6';
     this.elements.controls.innerHTML =
-      'WASD — движение | E — сбор | Q — напр. | F — конвейер | G — печь | H — бур | J — сборщик | K — сохр | L — загр | R — сброс | ЛКМ — конвейер | ПКМ — печь';
+      'WASD — движение | E — сбор | Q — напр. | F — конвейер | G — печь | H — бур | J — сборщик | T — турель | K — сохр | L — загр | R — сброс | ЛКМ — конвейер | ПКМ — печь';
     h.appendChild(this.elements.controls);
 
     this.elements.saveLoad = document.createElement('div');
@@ -44,13 +44,18 @@ class UI {
     this.elements.notify.style.color = '#ffcc00';
     h.appendChild(this.elements.notify);
 
-    this.update({ iron_ore: 0, copper_ore: 0, iron_plate: 0, copper_plate: 0, circuit_board: 0 }, 0, 0, 0, false, '');
+    this.update({ hp: 10, maxHp: 10, inventory: { iron_ore: 0, copper_ore: 0, iron_plate: 0, copper_plate: 0, circuit_board: 0 }, col: 0, row: 0 }, 0, false, '');
   }
 
-  update(inventory, totalItems, col, row, buildMode, buildInfo) {
-    this.elements.pos.textContent = `[${col || 0}, ${row || 0}]`;
+  update(player, totalItems, buildMode, buildInfo) {
+    const inv = player.inventory;
+    this.elements.pos.textContent = `[${player.col || 0}, ${player.row || 0}]`;
+    let hpStr = '';
+    for (let i = 0; i < (player.maxHp || 10); i++) {
+      hpStr += (i < player.hp) ? '❤' : '🖤';
+    }
     this.elements.inv.textContent =
-      `\u2692 Fe: ${inventory.iron_ore} Cu: ${inventory.copper_ore} | \u2699 Fe: ${inventory.iron_plate} Cu: ${inventory.copper_plate} | \u2691 Плата: ${inventory.circuit_board}`;
+      `${hpStr}  \u2692 Fe: ${inv.iron_ore} Cu: ${inv.copper_ore} | \u2699 Fe: ${inv.iron_plate} Cu: ${inv.copper_plate} | \u2691 Плата: ${inv.circuit_board}`;
     this.elements.prod.textContent =
       `\u2699 Произведено: ${totalItems || 0}`;
     this.elements.buildInfo.textContent = buildInfo || '';
