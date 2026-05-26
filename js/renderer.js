@@ -22,53 +22,58 @@ class Renderer {
 
   loadSprites(callback) {
     const spriteList = [
-      'conveyor_stripe', 'conveyor_stripe_part_end',
-      'conveyor_stripe_part_middle', 'conveyor_corner',
-      'machine', 'machine_window', 'box_small',
-      'building_a', 'building_b', 'building_c',
+      'box_small', 'machine', 'conveyor_stripe',
+      'conveyor_stripe_part_end', 'conveyor_stripe_part_middle',
+      'conveyor_corner',
     ];
     let loaded = 0;
     const total = spriteList.length;
 
+    const onDone = () => {
+      loaded++;
+      if (loaded >= total) {
+        this.spritesLoaded = true;
+        if (callback) callback();
+      }
+    };
+
     for (const name of spriteList) {
       const img = new Image();
-      img.onload = () => {
-        loaded++;
-        if (loaded >= total) {
-          this.spritesLoaded = true;
-          if (callback) callback();
-        }
-      };
-      img.onerror = () => {
-        loaded++;
-        if (loaded >= total) {
-          this.spritesLoaded = true;
-          if (callback) callback();
-        }
-      };
+      img.onload = onDone;
+      img.onerror = onDone;
       img.src = `assets/${name}.png`;
       this.sprites[name] = img;
     }
   }
 
-  renderGrid() {
+  renderWorld(world) {
     const ctx = this.ctx;
+
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
-        this.renderTileEmpty(col, row);
+        const { x, y } = this.tileToScreen(col, row);
+
+        const shade = ((col + row) % 2 === 0) ? '#3a3a4a' : '#2e2e3e';
+        ctx.fillStyle = shade;
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+        ctx.strokeStyle = '#4a4a5a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+
+        const spriteName = world.getSpriteForTile(col, row);
+        if (spriteName && this.sprites[spriteName]) {
+          this.renderSprite(col, row, spriteName);
+        }
       }
     }
   }
 
-  renderTileEmpty(col, row) {
+  renderSprite(col, row, spriteName) {
+    const img = this.sprites[spriteName];
+    if (!img) return;
     const { x, y } = this.tileToScreen(col, row);
-    const ctx = this.ctx;
-    const shade = ((col + row) % 2 === 0) ? '#3a3a4a' : '#333340';
-    ctx.fillStyle = shade;
-    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-    ctx.strokeStyle = '#4a4a5a';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+    this.ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
   }
 
   renderPlayer(player) {
@@ -100,13 +105,6 @@ class Renderer {
     ctx.lineTo(cx + dir.x * r, cy + dir.y * r);
     ctx.stroke();
     ctx.lineWidth = 1;
-  }
-
-  renderSprite(col, row, spriteName) {
-    const img = this.sprites[spriteName];
-    if (!img) return;
-    const { x, y } = this.tileToScreen(col, row);
-    this.ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
   }
 
   clear() {

@@ -8,11 +8,15 @@ class Game {
     this.keys = {};
     this.totalPlatesProduced = 0;
     this.lastTime = 0;
+    this.ready = false;
   }
 
   init() {
     this.world.init();
     this.setupInput();
+    this.renderer.loadSprites(() => {
+      this.ready = true;
+    });
   }
 
   setupInput() {
@@ -37,7 +41,30 @@ class Game {
         this.player.move(1, 0, this.world); break;
       case 'q': case 'Q':
         this.player.cycleDirection(); break;
+      case 'e': case 'E':
+        this.collectOre(); break;
     }
+  }
+
+  collectOre() {
+    const dir = DIR_VEC[this.player.direction];
+    const checks = [
+      { col: this.player.col + dir.x, row: this.player.row + dir.y },
+      { col: this.player.col + 1, row: this.player.row },
+      { col: this.player.col - 1, row: this.player.row },
+      { col: this.player.col, row: this.player.row + 1 },
+      { col: this.player.col, row: this.player.row - 1 },
+    ];
+    for (const c of checks) {
+      const tile = this.world.getTile(c.col, c.row);
+      if (tile && tile.type === 'iron_ore') {
+        this.world.setTile(c.col, c.row, { type: 'empty' });
+        this.player.inventory.iron_ore++;
+        this.ui.notify('+1 руда');
+        return;
+      }
+    }
+    this.ui.notify('Нет руды рядом');
   }
 
   update(dt) {
@@ -45,7 +72,7 @@ class Game {
 
   render() {
     this.renderer.clear();
-    this.renderer.renderGrid();
+    this.renderer.renderWorld(this.world);
     this.renderer.renderPlayer(this.player);
     this.ui.update(this.player.inventory, this.totalPlatesProduced);
   }
