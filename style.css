@@ -23,7 +23,7 @@ body {
 
 canvas {
   display: block;
-  cursor: default;
+  cursor: pointer;
 }
 
 #hud {

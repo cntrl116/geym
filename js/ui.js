@@ -30,7 +30,7 @@ class UI {
     this.elements.controls.style.fontSize = '12px';
     this.elements.controls.style.opacity = '0.6';
     this.elements.controls.innerHTML =
-      'WASD — движение | E — сбор | Q — напр. | F — конвейер | G — печь | K — сохр | L — загр | R — сброс';
+      'WASD — движение | E — сбор | Q — напр. | F — конвейер | G — печь | K — сохр | L — загр | R — сброс | ЛКМ — конвейер | ПКМ — печь';
     h.appendChild(this.elements.controls);
 
     this.elements.saveLoad = document.createElement('div');

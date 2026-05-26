@@ -22,6 +22,9 @@ class Game {
   }
 
   setupInput() {
+    this.hoverCol = -1;
+    this.hoverRow = -1;
+
     document.addEventListener('keydown', (e) => {
       const key = e.key;
       if (['w', 'W', 'ArrowUp', 's', 'S', 'ArrowDown',
@@ -35,6 +38,43 @@ class Game {
     });
     document.addEventListener('keyup', (e) => {
       this.keys[e.key] = false;
+    });
+
+    this.canvas.addEventListener('mousemove', (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const c = Math.floor(mx / TILE_SIZE);
+      const r = Math.floor(my / TILE_SIZE);
+      if (c >= 0 && c < COLS && r >= 0 && r < ROWS) {
+        this.hoverCol = c;
+        this.hoverRow = r;
+      } else {
+        this.hoverCol = -1;
+        this.hoverRow = -1;
+      }
+    });
+
+    this.canvas.addEventListener('mouseleave', () => {
+      this.hoverCol = -1;
+      this.hoverRow = -1;
+    });
+
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this.canvas.addEventListener('mousedown', (e) => {
+      if (this.hoverCol < 0 || this.hoverRow < 0) return;
+      if (e.button === 2) {
+        if (this.player.buildFurnaceAt(this.hoverCol, this.hoverRow, this.world)) {
+          this.ui.notify('Печь построена');
+        } else {
+          this.ui.notify('Нужна руда или место занято');
+        }
+      } else if (e.button === 0) {
+        if (this.player.buildConveyorAt(this.hoverCol, this.hoverRow, this.world)) {
+          this.ui.notify('Конвейер построен');
+        }
+      }
     });
   }
 
@@ -110,6 +150,7 @@ class Game {
     try {
       this.renderer.clear();
       this.renderer.renderWorld(this.world);
+      this.renderer.renderHover(this.hoverCol, this.hoverRow);
       this.renderer.renderPlayer(this.player);
 
       let buildInfo = '';

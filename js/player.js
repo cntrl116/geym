@@ -59,6 +59,22 @@ class Player {
     return world.placeFurnace(tc, tr, this.direction);
   }
 
+  buildConveyorAt(col, row, world) {
+    const tile = world.getTile(col, row);
+    if (!tile || tile.type !== TILE_TYPES.EMPTY) return false;
+    if (this.inventory.iron_ore < CONVEYOR_COST) return false;
+    this.inventory.iron_ore -= CONVEYOR_COST;
+    return world.placeConveyor(col, row, this.direction);
+  }
+
+  buildFurnaceAt(col, row, world) {
+    const tile = world.getTile(col, row);
+    if (!tile || tile.type !== TILE_TYPES.EMPTY) return false;
+    if (this.inventory.iron_ore < FURNACE_COST) return false;
+    this.inventory.iron_ore -= FURNACE_COST;
+    return world.placeFurnace(col, row, this.direction);
+  }
+
   collectOreAdjacent(world) {
     for (let d = 0; d < 4; d++) {
       const nc = this.col + DIR_VEC[d].x;

@@ -210,6 +210,15 @@ class Renderer {
     ctx.lineWidth = 1;
   }
 
+  renderHover(col, row) {
+    if (col < 0 || row < 0) return;
+    const { x, y } = this.tileToScreen(col, row);
+    const ctx = this.ctx;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+  }
+
   clear() {
     const ctx = this.ctx;
     ctx.fillStyle = '#1a1a2e';
