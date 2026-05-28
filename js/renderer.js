@@ -29,7 +29,7 @@ class Renderer {
 
   loadSprites(callback) {
     const spriteList = [
-      'box_small', 'machine', 'machine_bed', 'robot_arm_a',
+      'box_small', 'box_large', 'machine', 'machine_bed', 'robot_arm_a',
       'conveyor_stripe',
       'conveyor_stripe_part_end', 'conveyor_stripe_part_middle',
       'conveyor_corner',
@@ -103,6 +103,9 @@ class Renderer {
             break;
           case TILE_TYPES.WALL:
             this.renderWall(x, y, tile);
+            break;
+          case TILE_TYPES.CHEST:
+            this.renderChest(x, y, tile);
             break;
         }
       }
@@ -407,6 +410,39 @@ class Renderer {
     }
   }
 
+  renderChest(x, y, tile) {
+    const ctx = this.ctx;
+    const img = this.sprites['box_large'];
+    if (img && this.spritesLoaded) {
+      ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+    } else {
+      ctx.fillStyle = '#8B6914';
+      ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+      ctx.fillStyle = '#A0792A';
+      ctx.fillRect(x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+      ctx.strokeStyle = '#6B4904';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12);
+      ctx.fillStyle = '#C8A84A';
+      ctx.fillRect(x + 12, y + 14, TILE_SIZE - 24, 4);
+      ctx.fillRect(x + 14, y + 12, 4, TILE_SIZE - 24);
+    }
+
+    const count = tile.items ? tile.items.length : 0;
+    const ratio = count / CHEST_CAPACITY;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 4, y + TILE_SIZE - 6, TILE_SIZE - 8, 4);
+    ctx.fillStyle = ratio > 0.8 ? '#ff8800' : '#66cc44';
+    ctx.fillRect(x + 4, y + TILE_SIZE - 6, (TILE_SIZE - 8) * Math.min(ratio, 1), 4);
+
+    if (count > 0) {
+      ctx.fillStyle = '#eedd88';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(count, x + TILE_SIZE / 2, y + TILE_SIZE - 8);
+    }
+  }
+
   renderEnemies(enemies) {
     const ctx = this.ctx;
     for (const e of enemies) {
@@ -642,7 +678,7 @@ class Renderer {
     const controls = [
       'WASD / Стрелки - движение',
       'E - собрать руду / загрузить в печь',
-      'Q - поворот',
+      'Q - меню построек',
       'F - конвейер | G - печь',
       'H - бур | J - сборщик',
       'T - турель | Y - стена',
@@ -671,15 +707,18 @@ class Renderer {
     const lines = [
       'WASD / Стрелки — передвижение по миру',
       'E — собрать руду с земли или загрузить руду в печь',
-      'Q — повернуть направление строительства',
+      'Q — меню построек',
       '',
       'СТРОИТЕЛЬСТВО:',
+      'Q — меню построек (выбрать здание)',
+      'Esc — отменить режим стройки',
       'F — конвейер (перемещает предметы)',
       'G — печь (плавит 5 руды в 1 пластину)',
       'H — бур (добывает руду из соседней жилы)',
       'J — сборщик (собирает 2 пластины в 1 плату)',
       'T — турель (автоматически стреляет во врагов)',
       'Y — стена (блокирует врагов, 2 железных пластины)',
+      'Склад — хранит до 100 предметов',
       '',
       'КАК ИГРАТЬ:',
       '1. Соберите руду (E) и постройте бур (H) рядом с жилой',
@@ -793,6 +832,157 @@ class Renderer {
     ctx.font = '22px monospace';
     ctx.fillText('[ R ] - Начать заново', w / 2, h * 0.58);
     ctx.fillText('[ M ] - Главный экран', w / 2, h * 0.66);
+  }
+
+  renderBuildMenu(buildings, canAffordMap, selectedId) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, w, h);
+
+    const cols = 2;
+    const rows = Math.ceil(buildings.length / cols);
+    const cellW = 160;
+    const cellH = 110;
+    const pad = 10;
+    const menuW = cols * cellW + (cols + 1) * pad;
+    const menuH = rows * cellH + (rows + 1) * pad;
+    const startX = (w - menuW) / 2;
+    const startY = h - menuH - 30;
+
+    ctx.fillStyle = 'rgba(20, 20, 40, 0.9)';
+    ctx.strokeStyle = '#556677';
+    ctx.lineWidth = 2;
+    this.roundRect(ctx, startX, startY, menuW, menuH, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#8899aa';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('≡ МЕНЮ ПОСТРОЕК [Esc] ≡', w / 2, startY - 8);
+
+    for (let i = 0; i < buildings.length; i++) {
+      const b = buildings[i];
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = startX + pad + col * (cellW + pad);
+      const cy = startY + pad + row * (cellH + pad);
+      const canAfford = canAffordMap[b.id];
+
+      ctx.fillStyle = canAfford ? 'rgba(40, 40, 60, 0.9)' : 'rgba(30, 30, 40, 0.9)';
+      ctx.strokeStyle = selectedId === b.id ? '#44ff66' : (canAfford ? '#445566' : '#333344');
+      ctx.lineWidth = selectedId === b.id ? 3 : 1;
+      this.roundRect(ctx, cx, cy, cellW, cellH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      if (!canAfford) {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        this.roundRect(ctx, cx, cy, cellW, cellH, 6);
+        ctx.fill();
+      }
+
+      const iconCX = cx + cellW / 2;
+      const iconCY = cy + 30;
+      ctx.fillStyle = canAfford ? b.color : '#555555';
+      ctx.font = '28px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(b.iconChar || '?', iconCX, iconCY);
+
+      ctx.fillStyle = canAfford ? '#c8c8d0' : '#666666';
+      ctx.font = '13px monospace';
+      ctx.textBaseline = 'top';
+      ctx.fillText(b.name, iconCX, cy + 52);
+
+      let costStr = '';
+      const entries = Object.entries(b.costs);
+      const costLabels = { iron_plate: 'Fe_пл', iron_gear: 'шест' };
+      for (let j = 0; j < entries.length; j++) {
+        const [item, amt] = entries[j];
+        const label = costLabels[item] || item;
+        if (j > 0) costStr += ' ';
+        costStr += `${amt}${label}`;
+        const hasItem = canAffordMap[b.id];
+        ctx.fillStyle = hasItem ? '#aabb88' : '#885555';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(costStr, iconCX, cy + 72);
+      }
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    ctx.fillStyle = '#667788';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ESC — закрыть  |  ЛКМ — выбрать здание  |  ЛКМ на тайле — построить', w / 2, startY + menuH + 16);
+  }
+
+  renderGhost(col, row, type, canAfford) {
+    if (col < 0 || row < 0) return;
+    const { x, y } = this.tileToScreen(col, row);
+    const ctx = this.ctx;
+
+    const def = BUILDING_DEFS.find(d => d.id === type);
+    const baseColor = def ? def.color : '#ffffff';
+
+    ctx.fillStyle = canAfford ? baseColor + '44' : '#ff444444';
+    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    ctx.strokeStyle = canAfford ? '#ffffff66' : '#ff444466';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+    ctx.setLineDash([]);
+
+    if (def) {
+      ctx.fillStyle = canAfford ? '#ffffffaa' : '#ff666688';
+      ctx.font = '20px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(def.iconChar, x + TILE_SIZE / 2, y + TILE_SIZE / 2);
+    }
+  }
+
+  renderBuildModeIndicator(type) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const def = BUILDING_DEFS.find(d => d.id === type);
+    if (!def) return;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    this.roundRect(ctx, w - 180, 8, 172, 36, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#44ff66';
+    ctx.lineWidth = 1;
+    this.roundRect(ctx, w - 180, 8, 172, 36, 6);
+    ctx.stroke();
+
+    ctx.fillStyle = def.color;
+    ctx.font = '18px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.iconChar, w - 168, 26);
+
+    ctx.fillStyle = '#aaddff';
+    ctx.font = '13px monospace';
+    ctx.fillText('Строю: ' + def.name, w - 146, 26);
+  }
+
+  roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
   }
 
   clear() {

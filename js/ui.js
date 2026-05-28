@@ -30,7 +30,7 @@ class UI {
     this.elements.controls.style.fontSize = '12px';
     this.elements.controls.style.opacity = '0.6';
     this.elements.controls.innerHTML =
-      'WASD — движение | E — сбор | Q — напр. | F — конвейер | G — печь | H — бур | J — сборщик | T — турель | K — сохр | L — загр | R — сброс | ЛКМ — конвейер | ПКМ — печь';
+      'WASD — движение | E — сбор | Q — меню построек | F — конвейер | G — печь | H — бур | J — сборщик | T — турель | Y — стена | K — сохр | L — загр | R — сброс';
     h.appendChild(this.elements.controls);
 
     this.elements.saveLoad = document.createElement('div');
@@ -55,7 +55,7 @@ class UI {
       hpStr += (i < player.hp) ? '❤' : '🖤';
     }
     this.elements.inv.textContent =
-      `${hpStr}  \u2692 Fe: ${inv.iron_ore} Cu: ${inv.copper_ore} | \u2699 Fe: ${inv.iron_plate} Cu: ${inv.copper_plate} | \u2691 Плата: ${inv.circuit_board}`;
+      `${hpStr}  \u2692 Fe: ${inv.iron_ore} Cu: ${inv.copper_ore} | \u2699 Fe: ${inv.iron_plate} Cu: ${inv.copper_plate} | \u2691 Плата: ${inv.circuit_board} | \u2699 Шест: ${inv.iron_gear || 0}`;
     this.elements.prod.textContent =
       `\u2699 Произведено: ${totalItems || 0}`;
     this.elements.buildInfo.textContent = buildInfo || '';

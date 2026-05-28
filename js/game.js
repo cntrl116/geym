@@ -12,6 +12,8 @@ class Game {
     this.player = null;
     this.totalItemsProduced = 0;
     this.miningEffects = [];
+    this.buildMenuOpen = false;
+    this.buildMode = null;
   }
 
   startGame() {
@@ -30,6 +32,7 @@ class Game {
       if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
       else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
       else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
+      else if (type === ITEM_TYPES.IRON_GEAR) this.player.inventory.iron_gear++;
     };
     this.world.onPlayerHit = (dmg) => {
       this.player.hp -= dmg;
@@ -72,7 +75,7 @@ class Game {
            'a', 'A', 'ArrowLeft', 'd', 'D', 'ArrowRight',
            'e', 'E', 'q', 'Q', 'f', 'F', 'g', 'G',
            'h', 'H', 'j', 'J', 't', 'T',
-           'k', 'K', 'l', 'L', 'r', 'R'].includes(key)) {
+           'k', 'K', 'l', 'L', 'r', 'R', 'Escape'].includes(key)) {
         e.preventDefault();
       }
       this.keys[key] = true;
@@ -101,6 +104,25 @@ class Game {
 
     this.canvas.addEventListener('mousedown', (e) => {
       if (this.state !== 'playing' || !this.player || !this.world) return;
+
+      if (this.buildMenuOpen) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const hit = this.getMenuItemAt(mx, my);
+        if (hit) {
+          this.selectBuilding(hit);
+          return;
+        }
+        return;
+      }
+
+      if (this.buildMode) {
+        if (this.hoverCol < 0 || this.hoverRow < 0) return;
+        this.placeInBuildMode(this.hoverCol, this.hoverRow);
+        return;
+      }
+
       if (this.hoverCol < 0 || this.hoverRow < 0) return;
       if (e.button === 2) {
         if (this.player.buildFurnaceAt(this.hoverCol, this.hoverRow, this.world)) {
@@ -160,8 +182,22 @@ class Game {
           break;
         }
         case 'q': case 'Q':
-          this.player.cycleDirection();
-          this.ui.notify(`Направление: ${DIR_NAMES[this.player.direction]}`);
+          this.buildMenuOpen = !this.buildMenuOpen;
+          if (this.buildMenuOpen) {
+            this.buildMode = null;
+            this.ui.notify('Меню построек [Q]');
+          } else {
+            this.ui.notify('');
+          }
+          break;
+        case 'Escape':
+          if (this.buildMenuOpen) {
+            this.buildMenuOpen = false;
+            this.ui.notify('');
+          } else if (this.buildMode) {
+            this.buildMode = null;
+            this.ui.notify('Режим стройки отменён');
+          }
           break;
         case 'e': case 'E': {
           const r = this.player.collectOreAdjacent(this.world);
@@ -238,6 +274,99 @@ class Game {
     }
   }
 
+  getMenuItemAt(mx, my) {
+    const cols = 2;
+    const rows = Math.ceil(BUILDING_DEFS.length / cols);
+    const cellW = 160;
+    const cellH = 110;
+    const pad = 10;
+    const menuW = cols * cellW + (cols + 1) * pad;
+    const menuH = rows * cellH + (rows + 1) * pad;
+    const startX = (this.canvas.width - menuW) / 2;
+    const startY = this.canvas.height - menuH - 30;
+
+    for (let i = 0; i < BUILDING_DEFS.length; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = startX + pad + col * (cellW + pad);
+      const cy = startY + pad + row * (cellH + pad);
+      if (mx >= cx && mx <= cx + cellW && my >= cy && my <= cy + cellH) {
+        return BUILDING_DEFS[i].id;
+      }
+    }
+    return null;
+  }
+
+  selectBuilding(id) {
+    const def = BUILDING_DEFS.find(b => b.id === id);
+    if (!def) return;
+    if (!this.canAffordBuild(id)) {
+      this.ui.notify('Не хватает ресурсов для ' + def.name);
+      return;
+    }
+    this.buildMode = id;
+    this.buildMenuOpen = false;
+    this.ui.notify('Строю: ' + def.name + ' [ЛКМ — поставить, Esc — отмена]');
+  }
+
+  canAffordBuild(id) {
+    const def = BUILDING_DEFS.find(b => b.id === id);
+    if (!def) return false;
+    for (const [item, amount] of Object.entries(def.costs)) {
+      if ((this.player.inventory[item] || 0) < amount) return false;
+    }
+    return true;
+  }
+
+  deductBuildCost(id) {
+    const def = BUILDING_DEFS.find(b => b.id === id);
+    if (!def) return;
+    for (const [item, amount] of Object.entries(def.costs)) {
+      this.player.inventory[item] -= amount;
+    }
+  }
+
+  placeInBuildMode(col, row) {
+    if (!this.buildMode) return;
+    const tile = this.world.getTile(col, row);
+    if (tile.type !== TILE_TYPES.EMPTY) {
+      this.ui.notify('Тайл занят');
+      return;
+    }
+    if (!this.canAffordBuild(this.buildMode)) {
+      this.ui.notify('Не хватает ресурсов');
+      return;
+    }
+
+    const def = BUILDING_DEFS.find(b => b.id === this.buildMode);
+    let success = false;
+
+    switch (this.buildMode) {
+      case 'conveyor':
+        success = this.world.placeConveyor(col, row, this.player.direction);
+        break;
+      case 'furnace':
+        success = this.world.placeFurnace(col, row, this.player.direction);
+        break;
+      case 'chest':
+        success = this.world.placeChest(col, row, this.player.direction);
+        break;
+      case 'drill':
+        success = this.world.placeDrill(col, row, this.player.direction);
+        break;
+      default:
+        this.ui.notify('Неизвестное здание');
+        return;
+    }
+
+    if (success) {
+      this.deductBuildCost(this.buildMode);
+      this.ui.notify((def ? def.name : this.buildMode) + ' построен');
+    } else {
+      this.ui.notify('Не удалось построить');
+    }
+  }
+
   update(dt) {
     if (this.state === 'playing') {
       this.world.playerCol = this.player.col;
@@ -298,6 +427,10 @@ class Game {
       this.renderer.renderProjectiles(this.world.projectiles);
       this.renderer.renderEnemies(this.world.enemies);
       this.renderer.renderHover(this.hoverCol, this.hoverRow);
+      if (this.buildMode) {
+        const canAfford = this.canAffordBuild(this.buildMode);
+        this.renderer.renderGhost(this.hoverCol, this.hoverRow, this.buildMode, canAfford);
+      }
       this.renderer.renderPlayer(this.player);
       this.renderer.renderCompass(this.player.col, this.player.row, this.world.spawnCol, this.world.spawnRow);
 
@@ -307,9 +440,23 @@ class Game {
         this.renderer.renderGameOver(this.totalItemsProduced);
       }
 
+      if (this.buildMenuOpen) {
+        const canAffordMap = {};
+        for (const b of BUILDING_DEFS) {
+          canAffordMap[b.id] = this.canAffordBuild(b.id);
+        }
+        this.renderer.renderBuildMenu(BUILDING_DEFS, canAffordMap, this.buildMode);
+      } else if (this.buildMode) {
+        this.renderer.renderBuildModeIndicator(this.buildMode);
+      }
+
       if (this.state === 'playing') {
         let buildInfo = '';
         buildInfo += `Направление: ${DIR_NAMES[this.player.direction]}`;
+        if (this.buildMode) {
+          const def = BUILDING_DEFS.find(b => b.id === this.buildMode);
+          buildInfo += ` | 🛠 Строю: ${def ? def.name : this.buildMode}`;
+        }
         this.ui.update(
           this.player,
           this.totalItemsProduced,
@@ -374,6 +521,7 @@ class Game {
       if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
       else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
       else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
+      else if (type === ITEM_TYPES.IRON_GEAR) this.player.inventory.iron_gear++;
     };
     this.world.onPlayerHit = (dmg) => {
       this.player.hp -= dmg;

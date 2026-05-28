@@ -26,6 +26,7 @@ const TILE_TYPES = {
   ASSEMBLER: 'assembler',
   TURRET: 'turret',
   WALL: 'wall',
+  CHEST: 'chest',
 };
 
 const ITEM_TYPES = {
@@ -34,13 +35,24 @@ const ITEM_TYPES = {
   IRON_PLATE: 'iron_plate',
   COPPER_PLATE: 'copper_plate',
   CIRCUIT_BOARD: 'circuit_board',
+  IRON_GEAR: 'iron_gear',
 };
 
 const RECIPES = {
   iron_plate: { input: { iron_ore: 5 }, output: { type: 'iron_plate', count: 1 }, time: 3000, building: 'furnace' },
   copper_plate: { input: { copper_ore: 5 }, output: { type: 'copper_plate', count: 1 }, time: 3000, building: 'furnace' },
   circuit_board: { input: { iron_plate: 2, copper_plate: 2 }, output: { type: 'circuit_board', count: 1 }, time: 4000, building: 'assembler' },
+  iron_gear: { input: { iron_plate: 2 }, output: { type: 'iron_gear', count: 1 }, time: 2000, building: 'assembler' },
 };
+
+const CHEST_CAPACITY = 100;
+
+const BUILDING_DEFS = [
+  { id: 'conveyor', name: 'Конвейер',      iconChar: '⇨',  color: '#777788', tileType: TILE_TYPES.CONVEYOR, costs: { iron_plate: 1 } },
+  { id: 'furnace',  name: 'Печь',          iconChar: '⏽',  color: '#8B4513', tileType: TILE_TYPES.FURNACE,  costs: { iron_plate: 5 } },
+  { id: 'chest',    name: 'Склад',         iconChar: '▣',  color: '#8B6914', tileType: TILE_TYPES.CHEST,    costs: { iron_plate: 5 } },
+  { id: 'drill',    name: 'Рудокопатель',  iconChar: '⛏',  color: '#556677', tileType: TILE_TYPES.DRILL,    costs: { iron_plate: 10, iron_gear: 2 } },
+];
 
 const CONVEYOR_COST = 1;
 const FURNACE_COST = 3;

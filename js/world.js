@@ -156,6 +156,17 @@ class World {
     return true;
   }
 
+  placeChest(col, row, dir) {
+    const tile = this.getTile(col, row);
+    if (tile.type !== TILE_TYPES.EMPTY) return false;
+    this.setTile(col, row, {
+      type: TILE_TYPES.CHEST,
+      direction: dir,
+      items: [],
+    });
+    return true;
+  }
+
   generateInitialOre(count, tileType, countField) {
     let placed = 0;
     let attempts = 0;
@@ -375,6 +386,9 @@ class World {
       if (tile.inputBuffer.length >= 8) return false;
       return item.type === ITEM_TYPES.IRON_PLATE || item.type === ITEM_TYPES.COPPER_PLATE;
     }
+    if (tile.type === TILE_TYPES.CHEST) {
+      return !tile.items || tile.items.length < CHEST_CAPACITY;
+    }
     if (tile.type === TILE_TYPES.DRILL || tile.type === TILE_TYPES.TURRET) {
       return false;
     }
@@ -385,6 +399,11 @@ class World {
     if (tile.type === TILE_TYPES.CONVEYOR) {
       if (!tile.items) tile.items = [];
       tile.items.push({ type: item.type, progress: 0 });
+    } else if (tile.type === TILE_TYPES.CHEST) {
+      if (!tile.items) tile.items = [];
+      if (tile.items.length < CHEST_CAPACITY) {
+        tile.items.push(item);
+      }
     } else if (tile.type === TILE_TYPES.FURNACE || tile.type === TILE_TYPES.ASSEMBLER) {
       tile.inputBuffer.push(item);
     }
@@ -626,6 +645,7 @@ class World {
       case TILE_TYPES.ASSEMBLER: return 'robot_arm_a';
       case TILE_TYPES.TURRET: return 'machine';
       case TILE_TYPES.WALL: return 'machine';
+      case TILE_TYPES.CHEST: return 'box_large';
       default: return null;
     }
   }
@@ -669,6 +689,10 @@ class World {
         t.maxHp = tile.maxHp || WALL_HP;
         t.direction = tile.direction;
       }
+      if (tile.type === TILE_TYPES.CHEST) {
+        t.direction = tile.direction;
+        t.items = (tile.items || []).map(i => ({ ...i }));
+      }
       tilesObj[key] = t;
     }
     return {
@@ -708,6 +732,9 @@ class World {
         if (t.type === TILE_TYPES.WALL) {
           t.hp = t.hp || WALL_HP;
           t.maxHp = t.maxHp || WALL_HP;
+        }
+        if (t.type === TILE_TYPES.CHEST) {
+          if (!Array.isArray(t.items)) t.items = [];
         }
         this.tiles.set(key, t);
       }
