@@ -1,17 +1,30 @@
 class Game {
   constructor(canvas) {
     this.canvas = canvas;
-    this.world = new World();
-    this.player = new Player();
     this.renderer = new Renderer(canvas);
     this.ui = new UI();
     this.keys = {};
-    this.totalItemsProduced = 0;
     this.lastTime = 0;
+    this.state = 'menu';
+    this.menuSection = 'main';
+    this.deathTimer = 0;
+    this.world = null;
+    this.player = null;
+    this.totalItemsProduced = 0;
+    this.miningEffects = [];
   }
 
-  init() {
+  startGame() {
+    this.world = new World();
+    this.player = new Player();
+    this.totalItemsProduced = 0;
+    this.miningEffects = [];
+    this.world.spawnCol = this.player.col;
+    this.world.spawnRow = this.player.row;
     this.world.init();
+    this.renderer.camX = this.canvas.width / 2 - this.player.col * TILE_SIZE - TILE_SIZE / 2;
+    this.renderer.camY = this.canvas.height / 2 - this.player.row * TILE_SIZE - TILE_SIZE / 2;
+    this.renderer.setCamera(this.renderer.camX, this.renderer.camY);
     this.world.onItemProduced = (type) => {
       this.totalItemsProduced++;
       if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
@@ -29,15 +42,24 @@ class Game {
       this.player.inventory.iron_ore += 2;
       this.ui.notify('Враг уничтожен! +2 Fe');
     };
-    this.gameEnded = false;
+    this.world.onWaveStart = (num, count) => {
+      this.ui.notify('ВОЛНА ' + num + '! Врагов: ' + count);
+    };
+    this.state = 'playing';
+  }
+
+  start() {
     this.setupInput();
-    this.renderer.loadSprites();
-    this.tryAutoLoad();
+    this.renderer.loadSprites(() => {
+      this.state = 'menu';
+      this.lastTime = performance.now();
+      this.loop(this.lastTime);
+    });
   }
 
   gameOver() {
-    this.gameEnded = true;
-    this.ui.notify('GAME OVER — нажми R для рестарта');
+    this.state = 'death';
+    this.deathTimer = 2000;
   }
 
   setupInput() {
@@ -64,15 +86,10 @@ class Game {
       const rect = this.canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const c = Math.floor(mx / TILE_SIZE);
-      const r = Math.floor(my / TILE_SIZE);
-      if (c >= 0 && c < COLS && r >= 0 && r < ROWS) {
-        this.hoverCol = c;
-        this.hoverRow = r;
-      } else {
-        this.hoverCol = -1;
-        this.hoverRow = -1;
-      }
+      const c = Math.floor((mx - this.renderer.offsetX) / TILE_SIZE);
+      const r = Math.floor((my - this.renderer.offsetY) / TILE_SIZE);
+      this.hoverCol = c;
+      this.hoverRow = r;
     });
 
     this.canvas.addEventListener('mouseleave', () => {
@@ -83,6 +100,7 @@ class Game {
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
     this.canvas.addEventListener('mousedown', (e) => {
+      if (this.state !== 'playing' || !this.player || !this.world) return;
       if (this.hoverCol < 0 || this.hoverRow < 0) return;
       if (e.button === 2) {
         if (this.player.buildFurnaceAt(this.hoverCol, this.hoverRow, this.world)) {
@@ -99,6 +117,22 @@ class Game {
   }
 
   handleKeyDown(key) {
+    if (this.state === 'menu') {
+      if (key === 'Enter') {
+        if (this.menuSection === 'main') this.startGame();
+        else this.menuSection = 'main';
+      } else if (key === 'i' || key === 'I') {
+        this.menuSection = this.menuSection === 'main' ? 'instructions' : 'main';
+      }
+      return;
+    }
+    if (this.state === 'gameover') {
+      if (key === 'r' || key === 'R') this.startGame();
+      else if (key === 'm' || key === 'M') this.state = 'menu';
+      return;
+    }
+    if (this.state === 'death') return;
+
     try {
       switch (key) {
         case 'w': case 'W': case 'ArrowUp': {
@@ -131,9 +165,20 @@ class Game {
           break;
         case 'e': case 'E': {
           const r = this.player.collectOreAdjacent(this.world);
-          if (r === 'iron_ore') this.ui.notify('+1 Fe');
-          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
-          else if (!r) this.ui.notify('Нет руды рядом');
+          if (r) {
+            this.miningEffects.push({ col: this.player.lastMinedCol, row: this.player.lastMinedRow, timer: 400 });
+            if (r === 'iron_ore') this.ui.notify('+1 Fe');
+            else if (r === 'copper_ore') this.ui.notify('+1 Cu');
+          } else {
+            const f = this.player.feedFurnace(this.world);
+            if (f) {
+              this.miningEffects.push({ col: this.player.lastMinedCol, row: this.player.lastMinedRow, timer: 400 });
+              if (f === 'iron_ore') this.ui.notify('Руда загружена в печь (Fe)');
+              else this.ui.notify('Руда загружена в печь (Cu)');
+            } else {
+              this.ui.notify('Нет руды рядом');
+            }
+          }
           break;
         }
         case 'f': case 'F':
@@ -171,6 +216,13 @@ class Game {
             this.ui.notify('Нужна пластина или место занято');
           }
           break;
+        case 'y': case 'Y':
+          if (this.player.buildWall(this.world)) {
+            this.ui.notify('Стена построена');
+          } else {
+            this.ui.notify('Нужна пластина или место занято');
+          }
+          break;
         case 'k': case 'K':
           this.saveGame();
           break;
@@ -187,29 +239,83 @@ class Game {
   }
 
   update(dt) {
-    if (this.gameEnded) return;
-    this.world.playerCol = this.player.col;
-    this.world.playerRow = this.player.row;
-    this.world.update(dt);
-    this.renderer.update(dt);
+    if (this.state === 'playing') {
+      this.world.playerCol = this.player.col;
+      this.world.playerRow = this.player.row;
+
+      const targetCamX = this.canvas.width / 2 - this.player.col * TILE_SIZE - TILE_SIZE / 2;
+      const targetCamY = this.canvas.height / 2 - this.player.row * TILE_SIZE - TILE_SIZE / 2;
+      const camLerp = Math.min(1, dt * 0.01);
+      this.renderer.camX += (targetCamX - this.renderer.camX) * camLerp;
+      this.renderer.camY += (targetCamY - this.renderer.camY) * camLerp;
+      this.renderer.setCamera(this.renderer.camX, this.renderer.camY);
+
+      this.world.update(dt);
+      this.renderer.update(dt);
+      if (this.player.moveTimer > 0) {
+        this.player.moveTimer -= dt;
+        if (this.player.moveTimer < 0) this.player.moveTimer = 0;
+        this.player.walkStep = (1 - this.player.moveTimer / this.player.MOVE_DURATION) * Math.PI;
+      } else {
+        this.player.walkStep = 0;
+      }
+      for (let i = this.miningEffects.length - 1; i >= 0; i--) {
+        this.miningEffects[i].timer -= dt;
+        if (this.miningEffects[i].timer <= 0) {
+          this.miningEffects.splice(i, 1);
+        }
+      }
+    } else if (this.state === 'death') {
+      this.deathTimer -= dt;
+      if (this.deathTimer <= 0) {
+        this.deathTimer = 0;
+        this.state = 'gameover';
+      }
+      this.renderer.update(dt);
+      for (let i = this.miningEffects.length - 1; i >= 0; i--) {
+        this.miningEffects[i].timer -= dt;
+        if (this.miningEffects[i].timer <= 0) {
+          this.miningEffects.splice(i, 1);
+        }
+      }
+    } else {
+      this.renderer.update(dt);
+    }
   }
 
   render() {
     try {
       this.renderer.clear();
+
+      if (this.state === 'menu') {
+        if (this.menuSection === 'main') this.renderer.renderMenu();
+        else this.renderer.renderInstructions();
+        return;
+      }
+
       this.renderer.renderWorld(this.world);
+      this.renderer.renderMiningEffects(this.miningEffects);
       this.renderer.renderProjectiles(this.world.projectiles);
       this.renderer.renderEnemies(this.world.enemies);
       this.renderer.renderHover(this.hoverCol, this.hoverRow);
       this.renderer.renderPlayer(this.player);
+      this.renderer.renderCompass(this.player.col, this.player.row, this.world.spawnCol, this.world.spawnRow);
 
-      let buildInfo = '';
-      buildInfo += `Направление: ${DIR_NAMES[this.player.direction]}`;
-      this.ui.update(
-        this.player,
-        this.totalItemsProduced,
-        false, buildInfo
-      );
+      if (this.state === 'death') {
+        this.renderer.renderDeathOverlay(this.deathTimer, 2000);
+      } else if (this.state === 'gameover') {
+        this.renderer.renderGameOver(this.totalItemsProduced);
+      }
+
+      if (this.state === 'playing') {
+        let buildInfo = '';
+        buildInfo += `Направление: ${DIR_NAMES[this.player.direction]}`;
+        this.ui.update(
+          this.player,
+          this.totalItemsProduced,
+          false, buildInfo
+        );
+      }
     } catch (err) {
       this.ui.notify('RENDER ERR: ' + err.message);
     }
@@ -221,12 +327,6 @@ class Game {
     this.update(Math.min(dt, 100));
     this.render();
     requestAnimationFrame((t) => this.loop(t));
-  }
-
-  start() {
-    this.init();
-    this.lastTime = performance.now();
-    this.loop(this.lastTime);
   }
 
   tryAutoLoad() {
@@ -268,7 +368,7 @@ class Game {
       this.world.playerRow = this.player.row;
     }
     this.totalItemsProduced = data.totalItemsProduced || 0;
-    this.gameEnded = false;
+    this.state = 'playing';
     this.world.onItemProduced = (type) => {
       this.totalItemsProduced++;
       if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
@@ -284,6 +384,9 @@ class Game {
     };
     this.world.onEnemyKilled = () => {
       this.player.inventory.iron_ore += 2;
+    };
+    this.world.onWaveStart = (num, count) => {
+      this.ui.notify('ВОЛНА ' + num + '! Врагов: ' + count);
     };
   }
 
@@ -308,27 +411,7 @@ class Game {
 
   resetGame() {
     localStorage.removeItem('gejmSave');
-    this.totalItemsProduced = 0;
-    this.player = new Player();
-    this.world = new World();
-    this.world.init();
-    this.world.onItemProduced = (type) => {
-      this.totalItemsProduced++;
-      if (type === ITEM_TYPES.IRON_PLATE) this.player.inventory.iron_plate++;
-      else if (type === ITEM_TYPES.COPPER_PLATE) this.player.inventory.copper_plate++;
-      else if (type === ITEM_TYPES.CIRCUIT_BOARD) this.player.inventory.circuit_board++;
-    };
-    this.world.onPlayerHit = (dmg) => {
-      this.player.hp -= dmg;
-      this.ui.notify('Атакован! ❤' + this.player.hp);
-      if (this.player.hp <= 0) {
-        this.gameOver();
-      }
-    };
-    this.world.onEnemyKilled = () => {
-      this.player.inventory.iron_ore += 2;
-    };
-    this.gameEnded = false;
+    this.startGame();
     this.ui.notify('Мир сброшен');
   }
 }

@@ -4,6 +4,8 @@ class Renderer {
     this.ctx = canvas.getContext('2d');
     this.offsetX = 0;
     this.offsetY = 0;
+    this.camX = 0;
+    this.camY = 0;
     this.sprites = {};
     this.spritesLoaded = false;
     this.animTime = 0;
@@ -31,6 +33,8 @@ class Renderer {
       'conveyor_stripe',
       'conveyor_stripe_part_end', 'conveyor_stripe_part_middle',
       'conveyor_corner',
+      'oopi',
+      'structure_wall',
     ];
     let loaded = 0;
     const total = spriteList.length;
@@ -55,8 +59,13 @@ class Renderer {
   renderWorld(world) {
     const ctx = this.ctx;
 
-    for (let row = 0; row < ROWS; row++) {
-      for (let col = 0; col < COLS; col++) {
+    const startCol = Math.floor(-this.offsetX / TILE_SIZE);
+    const startRow = Math.floor(-this.offsetY / TILE_SIZE);
+    const visCols = Math.ceil(this.canvas.width / TILE_SIZE) + 2;
+    const visRows = Math.ceil(this.canvas.height / TILE_SIZE) + 2;
+
+    for (let row = startRow; row < startRow + visRows; row++) {
+      for (let col = startCol; col < startCol + visCols; col++) {
         const { x, y } = this.tileToScreen(col, row);
 
         const shade = ((col + row) % 2 === 0) ? '#3a3a4a' : '#2e2e3e';
@@ -68,7 +77,6 @@ class Renderer {
         ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
 
         const tile = world.getTile(col, row);
-        if (!tile) continue;
 
         switch (tile.type) {
           case TILE_TYPES.IRON_ORE:
@@ -92,6 +100,9 @@ class Renderer {
             break;
           case TILE_TYPES.TURRET:
             this.renderTurret(x, y, tile);
+            break;
+          case TILE_TYPES.WALL:
+            this.renderWall(x, y, tile);
             break;
         }
       }
@@ -138,6 +149,13 @@ class Renderer {
       ctx.beginPath();
       ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2 + bob, 5, 0, Math.PI * 2);
       ctx.fill();
+
+      // Прогресс-бар
+      const progress = Math.min(tile.drillTimer / DRILL_SPEED, 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(x + 3, y + TILE_SIZE - 7, TILE_SIZE - 6, 4);
+      ctx.fillStyle = '#ffcc00';
+      ctx.fillRect(x + 3, y + TILE_SIZE - 7, (TILE_SIZE - 6) * progress, 4);
     }
 
     if (tile.outputBuffer && tile.outputBuffer.length > 0) {
@@ -163,6 +181,15 @@ class Renderer {
     if (tile.isCrafting) {
       ctx.fillStyle = 'rgba(100, 200, 255, 0.25)';
       ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+
+      // Прогресс-бар
+      if (tile.currentRecipe) {
+        const progress = 1 - tile.craftTimer / RECIPES[tile.currentRecipe].time;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(x + 3, y + TILE_SIZE - 7, TILE_SIZE - 6, 4);
+        ctx.fillStyle = '#44aaff';
+        ctx.fillRect(x + 3, y + TILE_SIZE - 7, (TILE_SIZE - 6) * progress, 4);
+      }
     }
 
     const inputCount = tile.inputBuffer ? tile.inputBuffer.length : 0;
@@ -295,6 +322,15 @@ class Renderer {
       const pulse = Math.sin(this.animTime * 0.004) * 0.2 + 0.3;
       ctx.fillStyle = `rgba(255, 100, 0, ${pulse})`;
       ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+
+      // Прогресс-бар
+      if (tile.currentRecipe) {
+        const progress = 1 - tile.smeltTimer / RECIPES[tile.currentRecipe].time;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(x + 3, y + TILE_SIZE - 7, TILE_SIZE - 6, 4);
+        ctx.fillStyle = '#ff8800';
+        ctx.fillRect(x + 3, y + TILE_SIZE - 7, (TILE_SIZE - 6) * progress, 4);
+      }
     }
 
     const inputCount = tile.inputBuffer ? tile.inputBuffer.length : 0;
@@ -339,37 +375,118 @@ class Renderer {
     ctx.restore();
   }
 
+  renderWall(x, y, tile) {
+    const ctx = this.ctx;
+    const img = this.sprites['structure_wall'];
+    if (img && this.spritesLoaded) {
+      ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+    } else {
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+      ctx.strokeStyle = '#7a7a7a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = '#6a6a6a';
+        ctx.fillRect(x + 4 + i * 12, y + 4, 8, TILE_SIZE - 8);
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fillRect(x + 6 + i * 12, y + 6, 4, TILE_SIZE - 12);
+      }
+    }
+
+    const hpRatio = tile.hp / tile.maxHp;
+    ctx.fillStyle = '#400';
+    ctx.fillRect(x + 4, y + TILE_SIZE - 5, TILE_SIZE - 8, 3);
+    ctx.fillStyle = hpRatio > 0.5 ? '#0a0' : '#a80';
+    ctx.fillRect(x + 4, y + TILE_SIZE - 5, (TILE_SIZE - 8) * hpRatio, 3);
+
+    if (hpRatio < 0.33) {
+      ctx.fillStyle = `rgba(255,0,0,${Math.sin(this.animTime * 0.008) * 0.2 + 0.1})`;
+      ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    }
+  }
+
   renderEnemies(enemies) {
     const ctx = this.ctx;
     for (const e of enemies) {
-      const { x, y } = this.tileToScreen(e.col, e.row);
+      const progress = e.moveTimer / ENEMY_MOVE_INTERVAL;
+      const col = e.prevCol + (e.col - e.prevCol) * progress;
+      const row = e.prevRow + (e.row - e.prevRow) * progress;
+      const { x, y } = this.tileToScreen(col, row);
       const cx = x + TILE_SIZE / 2;
       const cy = y + TILE_SIZE / 2;
 
-      // Тело
-      ctx.fillStyle = '#cc3333';
+      const pulse = Math.sin(this.animTime * 0.006) * 2;
+
+      // Тень
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.beginPath();
-      ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + 12, 10, 4, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Глаза
-      ctx.fillStyle = '#fff';
+      // Тело — тёмно-красный силуэт с зазубренным краем
+      ctx.fillStyle = '#8a1a1a';
       ctx.beginPath();
-      ctx.arc(cx - 3, cy - 2, 3, 0, Math.PI * 2);
-      ctx.arc(cx + 3, cy - 2, 3, 0, Math.PI * 2);
+      for (let a = 0; a < 12; a++) {
+        const angle = (a / 12) * Math.PI * 2;
+        const r = 11 + (a % 2 === 0 ? 2 : 0) + Math.sin(angle * 3 + this.animTime * 0.004) * 1;
+        const px = cx + Math.cos(angle) * r;
+        const py = cy + Math.sin(angle) * r - 2 + pulse;
+        if (a === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
       ctx.fill();
 
-      ctx.fillStyle = '#000';
+      // Внутреннее свечение
+      ctx.fillStyle = '#cc2222';
       ctx.beginPath();
-      ctx.arc(cx - 3, cy - 2, 1.5, 0, Math.PI * 2);
-      ctx.arc(cx + 3, cy - 2, 1.5, 0, Math.PI * 2);
+      ctx.arc(cx, cy - 2 + pulse, 7, 0, Math.PI * 2);
       ctx.fill();
+
+      // Рога
+      ctx.fillStyle = '#331111';
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, cy - 7 + pulse);
+      ctx.lineTo(cx - 9, cy - 15 + pulse);
+      ctx.lineTo(cx - 4, cy - 9 + pulse);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + 5, cy - 7 + pulse);
+      ctx.lineTo(cx + 9, cy - 15 + pulse);
+      ctx.lineTo(cx + 4, cy - 9 + pulse);
+      ctx.fill();
+
+      // Руки-клешни
+      ctx.fillStyle = '#5a0a0a';
+      ctx.fillRect(cx - 14, cy - 2 + pulse, 6, 3);
+      ctx.fillRect(cx + 8, cy - 2 + pulse, 6, 3);
+
+      // Глаза — горящие красные
+      ctx.fillStyle = '#ff0000';
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(cx - 4, cy - 3 + pulse, 2.5, 0, Math.PI * 2);
+      ctx.arc(cx + 4, cy - 3 + pulse, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ff6600';
+      ctx.shadowBlur = 3;
+      ctx.beginPath();
+      ctx.arc(cx - 4, cy - 3 + pulse, 1.2, 0, Math.PI * 2);
+      ctx.arc(cx + 4, cy - 3 + pulse, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
 
       // Полоска HP
-      ctx.fillStyle = '#600';
-      ctx.fillRect(cx - 8, cy - 14, 16, 3);
-      ctx.fillStyle = '#0f0';
-      ctx.fillRect(cx - 8, cy - 14, 16 * (e.hp / ENEMY_HP), 3);
+      ctx.fillStyle = '#400';
+      ctx.fillRect(cx - 8, cy - 17 + pulse, 16, 3);
+      ctx.fillStyle = e.hp > 1 ? '#ff3333' : '#ff8800';
+      ctx.fillRect(cx - 8, cy - 17 + pulse, 16 * (e.hp / ENEMY_HP), 3);
     }
   }
 
@@ -388,34 +505,65 @@ class Renderer {
   }
 
   renderPlayer(player) {
-    const { x, y } = this.tileToScreen(player.col, player.row);
+    let col = player.col;
+    let row = player.row;
+    if (player.moveTimer > 0) {
+      const t = 1 - player.moveTimer / player.MOVE_DURATION;
+      col = player.prevCol + (player.col - player.prevCol) * t;
+      row = player.prevRow + (player.row - player.prevRow) * t;
+    }
+    const { x, y } = this.tileToScreen(col, row);
     const ctx = this.ctx;
-    const cx = x + TILE_SIZE / 2;
-    const cy = y + TILE_SIZE / 2;
-    const r = TILE_SIZE / 2 - 4;
 
-    const gradient = ctx.createRadialGradient(cx - 3, cy - 3, 2, cx, cy, r);
-    gradient.addColorStop(0, '#66aaff');
-    gradient.addColorStop(1, '#3366cc');
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
+    const bob = Math.sin(player.walkStep) * 3;
+    const dy = player.walkStep > 0 ? bob : 0;
 
-    ctx.strokeStyle = '#88ccff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
+    const img = this.sprites['oopi'];
+    if (img && this.spritesLoaded) {
+      if (player.direction === DIR_LEFT) {
+        ctx.save();
+        ctx.translate(x + TILE_SIZE / 2, y + dy + TILE_SIZE / 2);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, -TILE_SIZE / 2, -TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
+        ctx.restore();
+      } else {
+        ctx.drawImage(img, x, y + dy, TILE_SIZE, TILE_SIZE);
+      }
+    } else {
+      const cx = x + TILE_SIZE / 2;
+      const cy = y + TILE_SIZE / 2 + dy;
+      const r = TILE_SIZE / 2 - 4;
 
-    const dir = DIR_VEC[player.direction];
-    ctx.strokeStyle = '#ffcc00';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + dir.x * r, cy + dir.y * r);
-    ctx.stroke();
-    ctx.lineWidth = 1;
+      const gradient = ctx.createRadialGradient(cx - 3, cy - 3, 2, cx, cy, r);
+      gradient.addColorStop(0, '#66aaff');
+      gradient.addColorStop(1, '#3366cc');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#88ccff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const dir = DIR_VEC[player.direction];
+      const eyeX = cx + dir.x * 4;
+      const eyeY = cy + dir.y * 4 - 2;
+
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(eyeX - 4, eyeY, 3.5, 0, Math.PI * 2);
+      ctx.arc(eyeX + 4, eyeY, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(eyeX + dir.x * 2 - 4, eyeY + dir.y * 2, 1.8, 0, Math.PI * 2);
+      ctx.arc(eyeX + dir.x * 2 + 4, eyeY + dir.y * 2, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   renderHover(col, row) {
@@ -425,6 +573,226 @@ class Renderer {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+  }
+
+  renderMiningEffects(effects) {
+    const ctx = this.ctx;
+    for (const fx of effects) {
+      const { x, y } = this.tileToScreen(fx.col, fx.row);
+      const t = fx.timer;
+      const alpha = t / 400;
+
+      ctx.fillStyle = `rgba(255, 220, 80, ${alpha * 0.5})`;
+      ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+      const count = 6;
+      for (let s = 0; s < count; s++) {
+        const angle = (s / count) * Math.PI * 2 + t * 0.02;
+        const dist = (1 - alpha) * 24;
+        const px = x + TILE_SIZE / 2 + Math.cos(angle) * dist;
+        const py = y + TILE_SIZE / 2 + Math.sin(angle) * dist;
+        const size = Math.max(1, alpha * 4);
+        ctx.fillStyle = `rgba(255, 255, 200, ${alpha * 0.8})`;
+        ctx.beginPath();
+        ctx.arc(px, py, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  renderMenu() {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#88ccff';
+    ctx.font = 'bold 64px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ГЭЙМ', w / 2, h * 0.28);
+
+    ctx.fillStyle = '#aabbcc';
+    ctx.font = '20px monospace';
+    ctx.fillText('Factory Automation', w / 2, h * 0.28 + 42);
+
+    const pulse = Math.sin(this.animTime * 0.004) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(100, 200, 255, ${pulse})`;
+    ctx.font = '24px monospace';
+    ctx.fillText('[ Enter ] - Начать игру', w / 2, h * 0.50);
+
+    ctx.fillStyle = '#667788';
+    ctx.font = '14px monospace';
+    const controls = [
+      'WASD / Стрелки - движение',
+      'E - собрать руду / загрузить в печь',
+      'Q - поворот',
+      'F - конвейер | G - печь',
+      'H - бур | J - сборщик',
+      'T - турель | Y - стена',
+    ];
+    for (let i = 0; i < controls.length; i++) {
+      ctx.fillText(controls[i], w / 2, h * 0.66 + i * 22);
+    }
+
+    ctx.fillStyle = '#556677';
+    ctx.font = '14px monospace';
+    ctx.fillText('[ I ] - Инструкция', w / 2, h * 0.66 + 6 * 22 + 10);
+  }
+
+  renderInstructions() {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    ctx.fillStyle = '#88ccff';
+    ctx.font = 'bold 32px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ИНСТРУКЦИЯ', w / 2, 50);
+
+    ctx.fillStyle = '#aabbcc';
+    ctx.font = '14px monospace';
+    const lines = [
+      'WASD / Стрелки — передвижение по миру',
+      'E — собрать руду с земли или загрузить руду в печь',
+      'Q — повернуть направление строительства',
+      '',
+      'СТРОИТЕЛЬСТВО:',
+      'F — конвейер (перемещает предметы)',
+      'G — печь (плавит 5 руды в 1 пластину)',
+      'H — бур (добывает руду из соседней жилы)',
+      'J — сборщик (собирает 2 пластины в 1 плату)',
+      'T — турель (автоматически стреляет во врагов)',
+      'Y — стена (блокирует врагов, 2 железных пластины)',
+      '',
+      'КАК ИГРАТЬ:',
+      '1. Соберите руду (E) и постройте бур (H) рядом с жилой',
+      '2. Направьте бур конвейером (F) к печи (G)',
+      '3. Печь плавит руду в пластины — стройте больше!',
+      '4. Из пластин сборщик (J) делает платы',
+      '5. Стены (Y) блокируют врагов — стройте укрепления!',
+      '6. Турели (T) защищают базу от врагов',
+      '',
+      'ВРАГИ:',
+      'Волны врагов наступают каждые 10 секунд',
+      'Враги идут к игроку, затем отступают',
+      'За убийство врага даётся +2 железной руды',
+      '',
+      'СОХРАНЕНИЕ:',
+      'K — сохранить игру | L — загрузить',
+      'R — сбросить мир',
+    ];
+    const startY = 95;
+    for (let i = 0; i < lines.length; i++) {
+      const isHeader = lines[i].endsWith(':') && lines[i].length > 3;
+      ctx.fillStyle = isHeader ? '#88ccff' : '#8899aa';
+      ctx.fillText(lines[i], w / 2, startY + i * 18);
+    }
+
+    const pulse = Math.sin(this.animTime * 0.004) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(100, 200, 255, ${pulse})`;
+    ctx.font = '18px monospace';
+    ctx.fillText('[ Enter / I ] - Назад', w / 2, h - 30);
+  }
+
+  renderCompass(playerCol, playerRow, spawnCol, spawnRow) {
+    const ctx = this.ctx;
+    const cx = this.canvas.width - 60;
+    const cy = 60;
+    const r = 22;
+
+    const angle = Math.atan2(spawnRow - playerRow, spawnCol - playerCol);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#556677';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.rotate(angle);
+    ctx.fillStyle = '#ffaa00';
+    ctx.beginPath();
+    ctx.moveTo(0, -r + 5);
+    ctx.lineTo(-5, 8);
+    ctx.lineTo(5, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = '#8899aa';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('★', 0, 0);
+
+    ctx.restore();
+  }
+
+  renderDeathOverlay(timer, duration) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const progress = 1 - timer / duration;
+
+    const alpha = progress * 0.6;
+    ctx.fillStyle = `rgba(180, 0, 0, ${alpha})`;
+    ctx.fillRect(0, 0, w, h);
+
+    if (progress > 0.3) {
+      const textAlpha = Math.min(1, (progress - 0.3) / 0.3);
+      ctx.fillStyle = `rgba(255, 100, 100, ${textAlpha})`;
+      ctx.font = 'bold 48px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('ПОТРАЧЕНО', w / 2, h * 0.4);
+    }
+  }
+
+  renderGameOver(totalItems) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = '#ff6666';
+    ctx.font = 'bold 48px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', w / 2, h * 0.3);
+
+    ctx.fillStyle = '#cccccc';
+    ctx.font = '20px monospace';
+    ctx.fillText('Предметов произведено: ' + totalItems, w / 2, h * 0.42);
+
+    ctx.fillStyle = '#88ccff';
+    ctx.font = '22px monospace';
+    ctx.fillText('[ R ] - Начать заново', w / 2, h * 0.58);
+    ctx.fillText('[ M ] - Главный экран', w / 2, h * 0.66);
   }
 
   clear() {

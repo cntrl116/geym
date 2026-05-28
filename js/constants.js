@@ -1,5 +1,5 @@
-const COLS = 20;
-const ROWS = 15;
+const COLS = 30;
+const ROWS = 20;
 const TILE_SIZE = 40;
 
 const DIR_UP = 0;
@@ -25,6 +25,7 @@ const TILE_TYPES = {
   DRILL: 'drill',
   ASSEMBLER: 'assembler',
   TURRET: 'turret',
+  WALL: 'wall',
 };
 
 const ITEM_TYPES = {
@@ -53,9 +54,19 @@ const TURRET_COST = 5;
 const TURRET_RANGE = 5;
 const TURRET_COOLDOWN = 800;
 
-const ENEMY_HP = 3;
-const ENEMY_SPEED = 0.025;
+const WALL_COST = 2;
+const WALL_HP = 20;
+
+const ENEMY_HP = 5;
 const ENEMY_DAMAGE = 1;
-const ENEMY_SPAWN_INTERVAL = 12000;
+const ENEMY_SPAWN_INTERVAL = 20000;
+const ENEMY_ATTACK_COOLDOWN = 2000;
+const ENEMY_MOVE_INTERVAL = 400;
+
+const WAVE_COOLDOWN = 10000;
+const WAVE_ACTIVE_DURATION = 15000;
+const WAVE_RETREAT_DURATION = 5000;
+const BASE_ENEMIES_PER_WAVE = 4;
+const ENEMIES_PER_WAVE_INCREASE = 2;
 
 const PLAYER_MAX_HP = 10;
