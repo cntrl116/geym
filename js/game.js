@@ -157,18 +157,30 @@ class Game {
 
     try {
       switch (key) {
-        case 'w': case 'W': case 'ArrowUp':
-          this.player.move(0, -1, this.world);
+        case 'w': case 'W': case 'ArrowUp': {
+          const r = this.player.move(0, -1, this.world);
+          if (r === 'ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
           break;
-        case 's': case 'S': case 'ArrowDown':
-          this.player.move(0, 1, this.world);
+        }
+        case 's': case 'S': case 'ArrowDown': {
+          const r = this.player.move(0, 1, this.world);
+          if (r === 'ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
           break;
-        case 'a': case 'A': case 'ArrowLeft':
-          this.player.move(-1, 0, this.world);
+        }
+        case 'a': case 'A': case 'ArrowLeft': {
+          const r = this.player.move(-1, 0, this.world);
+          if (r === 'ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
           break;
-        case 'd': case 'D': case 'ArrowRight':
-          this.player.move(1, 0, this.world);
+        }
+        case 'd': case 'D': case 'ArrowRight': {
+          const r = this.player.move(1, 0, this.world);
+          if (r === 'ore') this.ui.notify('+1 Fe');
+          else if (r === 'copper_ore') this.ui.notify('+1 Cu');
           break;
+        }
         case 'q': case 'Q':
           this.buildMenuOpen = !this.buildMenuOpen;
           if (this.buildMenuOpen) {

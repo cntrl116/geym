@@ -16,15 +16,6 @@ class Player {
   }
 
   move(dCol, dRow, world) {
-    if (this.moveTimer > 0) return false;
-
-    if (dCol !== 0 || dRow !== 0) {
-      if (dCol === 0 && dRow === -1) this.direction = DIR_UP;
-      else if (dCol === 1 && dRow === 0) this.direction = DIR_RIGHT;
-      else if (dCol === 0 && dRow === 1) this.direction = DIR_DOWN;
-      else if (dCol === -1 && dRow === 0) this.direction = DIR_LEFT;
-    }
-
     const nc = this.col + dCol;
     const nr = this.row + dRow;
     const tile = world.getTile(nc, nr);
@@ -35,6 +26,12 @@ class Player {
     this.col = nc;
     this.row = nr;
     this.moveTimer = this.MOVE_DURATION;
+    if (dCol !== 0 || dRow !== 0) {
+      if (dCol === 0 && dRow === -1) this.direction = DIR_UP;
+      else if (dCol === 1 && dRow === 0) this.direction = DIR_RIGHT;
+      else if (dCol === 0 && dRow === 1) this.direction = DIR_DOWN;
+      else if (dCol === -1 && dRow === 0) this.direction = DIR_LEFT;
+    }
     return true;
   }
 
