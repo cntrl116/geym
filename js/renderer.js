@@ -551,20 +551,23 @@ class Renderer {
     const { x, y } = this.tileToScreen(col, row);
     const ctx = this.ctx;
 
+    const bob = Math.sin(player.walkStep) * 3;
+    const dy = player.walkStep > 0 ? bob : 0;
+
     const img = this.sprites['oopi'];
     if (img && this.spritesLoaded) {
       if (player.direction === DIR_LEFT) {
         ctx.save();
-        ctx.translate(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
+        ctx.translate(x + TILE_SIZE / 2, y + dy + TILE_SIZE / 2);
         ctx.scale(-1, 1);
         ctx.drawImage(img, -TILE_SIZE / 2, -TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
         ctx.restore();
       } else {
-        ctx.drawImage(img, x, y, TILE_SIZE, TILE_SIZE);
+        ctx.drawImage(img, x, y + dy, TILE_SIZE, TILE_SIZE);
       }
     } else {
       const cx = x + TILE_SIZE / 2;
-      const cy = y + TILE_SIZE / 2;
+      const cy = y + TILE_SIZE / 2 + dy;
       const r = TILE_SIZE / 2 - 4;
 
       const gradient = ctx.createRadialGradient(cx - 3, cy - 3, 2, cx, cy, r);

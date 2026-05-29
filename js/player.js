@@ -6,10 +6,11 @@ class Player {
     this.hp = PLAYER_MAX_HP;
     this.maxHp = PLAYER_MAX_HP;
     this.inventory = { iron_ore: 0, copper_ore: 0, iron_plate: 0, copper_plate: 0, circuit_board: 0, iron_gear: 0 };
-    this.MOVE_DURATION = 100;
+    this.MOVE_DURATION = 120;
     this.moveTimer = 0;
     this.prevCol = 1;
     this.prevRow = 1;
+    this.walkStep = 0;
     this.lastMinedCol = -1;
     this.lastMinedRow = -1;
   }
@@ -17,21 +18,18 @@ class Player {
   move(dCol, dRow, world) {
     if (this.moveTimer > 0) return false;
 
-    let newDir = this.direction;
-    if (dCol === 0 && dRow === -1) newDir = DIR_UP;
-    else if (dCol === 1 && dRow === 0) newDir = DIR_RIGHT;
-    else if (dCol === 0 && dRow === 1) newDir = DIR_DOWN;
-    else if (dCol === -1 && dRow === 0) newDir = DIR_LEFT;
+    if (dCol !== 0 || dRow !== 0) {
+      if (dCol === 0 && dRow === -1) this.direction = DIR_UP;
+      else if (dCol === 1 && dRow === 0) this.direction = DIR_RIGHT;
+      else if (dCol === 0 && dRow === 1) this.direction = DIR_DOWN;
+      else if (dCol === -1 && dRow === 0) this.direction = DIR_LEFT;
+    }
 
     const nc = this.col + dCol;
     const nr = this.row + dRow;
     const tile = world.getTile(nc, nr);
-    if (!tile || tile.type !== TILE_TYPES.EMPTY) {
-      this.direction = newDir;
-      return false;
-    }
+    if (!tile || tile.type !== TILE_TYPES.EMPTY) return false;
 
-    this.direction = newDir;
     this.prevCol = this.col;
     this.prevRow = this.row;
     this.col = nc;

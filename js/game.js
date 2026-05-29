@@ -372,6 +372,9 @@ class Game {
       if (this.player.moveTimer > 0) {
         this.player.moveTimer -= dt;
         if (this.player.moveTimer < 0) this.player.moveTimer = 0;
+        this.player.walkStep = (1 - this.player.moveTimer / this.player.MOVE_DURATION) * Math.PI;
+      } else {
+        this.player.walkStep = 0;
       }
       for (let i = this.miningEffects.length - 1; i >= 0; i--) {
         this.miningEffects[i].timer -= dt;
